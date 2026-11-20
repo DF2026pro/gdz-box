@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Коробки — Решу Домашку</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800&family=Onest:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12142b;          /* фон: чернильный синий, как тёмная карточка бота */
+    --panel: #1c2046;
+    --line: #2d3266;
+    --text: #eef0ff;
+    --soft: #a3a9d6;
+    --go: #7df0c8;           /* мятный из карточек ответов — цвет действия */
+    --go-ink: #0c2a22;
+    --r0: #4b69ff; --r1: #8847ff; --r2: #d32ce6; --r3: #eb4b4b; --r4: #ffc83d;
+    --win: var(--r0);
+    --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+    --body: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--body);
+               font-size: 16px; line-height: 1.45; overscroll-behavior: none; }
+  body { padding: 18px 0 calc(28px + env(safe-area-inset-bottom)); min-height: 100vh; }
+  .pad { padding: 0 18px; }
+  h1, h2, p { margin: 0; }
+
+  /* ── баланс ── */
+  .wallet { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  .wallet .sum { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; letter-spacing: -0.02em; }
+  .wallet .sum small { font-size: 22px; font-weight: 500; margin-left: 4px; }
+  .wallet .cap { color: var(--soft); font-size: 14px; margin-bottom: 6px; }
+  .cashout { font: 600 14px var(--body); color: var(--text); background: none; border: 1.5px solid var(--line);
+             border-radius: 999px; padding: 9px 14px; white-space: nowrap; }
+  .cashout:disabled { color: var(--soft); border-style: dashed; }
+
+  /* ── лента кейса ── */
+  .case { margin: 22px 0 0; position: relative; }
+  .window { position: relative; height: 148px; overflow: hidden; background: #0c0e22;
+            border-top: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line); }
+  .window::before, .window::after { content: ""; position: absolute; top: 0; bottom: 0; width: 64px; z-index: 2; pointer-events: none; }
+  .window::before { left: 0; background: linear-gradient(90deg, #0c0e22, transparent); }
+  .window::after { right: 0; background: linear-gradient(270deg, #0c0e22, transparent); }
+  .reel { position: absolute; top: 14px; left: 0; display: flex; gap: 8px; will-change: transform; }
+  .card { flex: 0 0 96px; height: 120px; border-radius: 10px; background: var(--panel); position: relative;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+          border-bottom: 6px solid var(--c); overflow: hidden; }
+  .card::before { content: ""; position: absolute; inset: auto 0 0 0; height: 70%;
+                  background: linear-gradient(0deg, color-mix(in srgb, var(--c) 38%, transparent), transparent); }
+  .card b { position: relative; font-family: var(--display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; }
+  .card i { position: relative; font-style: normal; font-size: 12px; color: var(--soft); }
+  .card.won { outline: 2.5px solid var(--c); box-shadow: 0 0 34px color-mix(in srgb, var(--c) 70%, transparent); z-index: 1; }
+  .needle { position: absolute; left: 50%; top: -7px; bottom: -7px; width: 3px; margin-left: -1.5px; background: var(--go); z-index: 3; border-radius: 2px; }
+  .needle::before, .needle::after { content: ""; position: absolute; left: 50%; margin-left: -8px; border: 8px solid transparent; }
+  .needle::before { top: 0; border-top-color: var(--go); }
+  .needle::after { bottom: 0; border-bottom-color: var(--go); }
+  .locked .reel { filter: grayscale(.9) brightness(.28) blur(1.5px); }
+  .locked .needle { display: none; }
+  .locknote { position: absolute; inset: 0; z-index: 4; display: none; align-items: center; justify-content: center;
+              text-align: center; padding: 0 28px; font-weight: 600; font-size: 17px; }
+  .locked .locknote { display: flex; }
+
+  /* ── итог ── */
+  .result { min-height: 58px; margin-top: 14px; text-align: center; }
+  .result .big { font-family: var(--display); font-weight: 800; font-size: 26px; color: var(--win); letter-spacing: -0.01em; }
+  .result .hint { color: var(--soft); font-size: 15px; }
+
+  /* ── кнопки ── */
+  .primary { display: block; width: 100%; margin-top: 10px; padding: 17px 16px; border: 0; border-radius: 16px;
+             font: 800 17px var(--display); letter-spacing: -0.01em; color: var(--go-ink); background: var(--go);
+             box-shadow: 0 5px 0 #3fae8c; transition: transform .08s, box-shadow .08s; }
+  .primary:active { transform: translateY(4px); box-shadow: 0 1px 0 #3fae8c; }
+  .primary:disabled { background: var(--line); color: var(--soft); box-shadow: 0 5px 0 #1f2350; }
+  .primary:focus-visible, .cashout:focus-visible, .invite:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .invite { display: block; width: 100%; margin-top: 14px; padding: 14px; border-radius: 16px; background: none;
+            border: 1.5px solid var(--line); color: var(--text); font: 600 16px var(--body); }
+
+  /* ── друзья ── */
+  .friends { margin-top: 26px; }
+  .friends h2, .odds h2, .wins h2 { font: 500 15px var(--display); margin-bottom: 10px; }
+  .slots { display: flex; gap: 8px; }
+  .slot { flex: 1; height: 12px; border-radius: 6px; background: var(--line); }
+  .slot.on { background: var(--go); }
+  .friends p { margin-top: 9px; color: var(--soft); font-size: 15px; }
+
+  /* ── шансы ── */
+  .odds { margin-top: 28px; }
+  .odds ul, .wins ul { list-style: none; margin: 0; padding: 0; }
+  .odds li { display: grid; grid-template-columns: 14px 1fr auto auto; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .odds li:last-child { border-bottom: 0; }
+  .odds .dot { width: 14px; height: 14px; border-radius: 4px; background: var(--c); }
+  .odds .amt { font-family: var(--display); font-weight: 500; font-size: 15px; }
+  .odds .pct { color: var(--soft); font-size: 14px; min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .fund { margin-top: 26px; }
+  .fund .bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+  .fund .bar span { display: block; height: 100%; background: var(--r4); border-radius: 5px; }
+  .fund p { margin-top: 8px; color: var(--soft); font-size: 15px; }
+  .fund p b { color: var(--text); font-weight: 600; }
+
+  .wins { margin-top: 28px; }
+  .wins li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 15px; }
+  .wins li span:last-child { font-family: var(--display); font-weight: 500; color: var(--c); }
+  .note { margin-top: 26px; color: var(--soft); font-size: 13px; }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .primary { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+
+<header class="pad wallet">
+  <div>
+    <p class="cap">На балансе</p>
+    <p class="sum"><span id="bal">0</span><small>₽</small></p>
+  </div>
+  <button class="cashout" id="cashout" type="button">Вывести</button>
+</header>
+
+<section class="case" id="case" aria-live="polite">
+  <div class="window">
+    <div class="reel" id="reel"></div>
+    <div class="needle"></div>
+    <div class="locknote" id="locknote"></div>
+  </div>
+  <div class="pad">
+    <div class="result" id="result"></div>
+    <button class="primary" id="main" type="button">Открыть коробку</button>
+    <button class="invite" id="invite" type="button">Позвать друзей</button>
+  </div>
+</section>
+
+<section class="pad friends">
+  <h2>До следующей коробки</h2>
+  <div class="slots" id="slots"></div>
+  <p id="friendsText"></p>
+</section>
+
+<section class="pad odds">
+  <h2>Что бывает в коробке</h2>
+  <ul id="odds"></ul>
+</section>
+
+<section class="pad fund">
+  <div class="bar"><span id="fundBar"></span></div>
+  <p id="fundText"></p>
+</section>
+
+<section class="pad wins" id="winsBox" hidden>
+  <h2>Недавно выиграли</h2>
+  <ul id="wins"></ul>
+</section>
+
+<p class="pad note" id="note"></p>
+
+<script>
+(function () {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var COLORS = ["var(--r0)", "var(--r1)", "var(--r2)", "var(--r3)", "var(--r4)"];
+  var HEX = ["#4b69ff", "#8847ff", "#d32ce6", "#eb4b4b", "#ffc83d"];
+  var CARD = 96, GAP = 8, STEP = CARD + GAP, WIN_AT = 58, TOTAL = 64;
+
+  // Данные приходят от бота в адресе (?d=…). Без них — показ-пример.
+  function readData() {
+    try {
+      var raw = new URLSearchParams(location.search).get("d");
+      if (!raw) return null;
+      raw = raw.replace(/-/g, "+").replace(/_/g, "/");
+      var bin = atob(raw), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (e) { return null; }
+  }
+  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 150, wd: 0,
+               link: "", text: "", tasks: 2,
+               tiers: [["Синяя", 30, 79.32], ["Фиолетовая", 60, 15.98], ["Розовая", 150, 3.2], ["Красная", 400, 1], ["Золотая", 1000, 0.5]],
+               wins: [["Маша", 2, 150], ["Дима", 0, 30], ["Алина", 1, 60]] };
+  var D = readData() || DEMO;
+  var canSend = !!(tg && tg.sendData && tg.initData !== undefined && !D.demo);
+
+  function rub(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  function plural(n, a, b, c) { var m = n % 10, h = n % 100; return (m === 1 && h !== 11) ? a : (m >= 2 && m <= 4 && (h < 12 || h > 14)) ? b : c; }
+  function $(id) { return document.getElementById(id); }
+  function haptic(kind, arg) { try { tg && tg.HapticFeedback && tg.HapticFeedback[kind](arg); } catch (e) {} }
+
+  if (tg) {
+    try { tg.ready(); tg.expand(); tg.setHeaderColor("#12142b"); tg.setBackgroundColor("#12142b"); } catch (e) {}
+  }
+
+  // ── баланс, друзья, шансы, фонд ──
+  $("bal").textContent = rub(D.bal);
+  var cash = $("cashout");
+  if (D.wd) { cash.textContent = "Заявка в работе"; cash.disabled = true; }
+  else if (D.bal < D.mw) { cash.textContent = "Вывод от " + rub(D.mw) + " ₽"; cash.disabled = true; }
+
+  var per = D.per || 3, filled = Math.max(0, per - D.nx);
+  if (D.bx > 0) filled = per;
+  for (var s = 0; s < per; s++) {
+    var el = document.createElement("div"); el.className = "slot" + (s < filled ? " on" : ""); $("slots").appendChild(el);
+  }
+  $("friendsText").textContent = D.bx > 0
+    ? "Коробка готова. Всего друзей засчитано: " + D.fr + "."
+    : (D.nx === 1 ? "Нужен ещё " : "Нужно ещё ") + D.nx + " " + plural(D.nx, "друг", "друга", "друзей") + ". Друг засчитывается, когда решит " + (D.tasks || 2) + " задания."
+      + (D.pe ? " Уже зашли, но ещё не решили: " + D.pe + "." : "");
+
+  D.tiers.forEach(function (t, i) {
+    var li = document.createElement("li"); li.style.setProperty("--c", COLORS[i % 5]);
+    li.innerHTML = '<span class="dot"></span><span>' + t[0] + '</span><span class="amt">' + rub(t[1]) + ' ₽</span><span class="pct">' + String(t[2]).replace(".", ",") + ' %</span>';
+    $("odds").appendChild(li);
+  });
+
+  $("fundBar").style.width = Math.max(0, Math.min(100, D.fl / D.fu * 100)) + "%";
+  $("fundText").innerHTML = "В призовом фонде осталось <b>" + rub(D.fl) + " ₽</b> из " + rub(D.fu) + " ₽";
+
+  if (D.wins && D.wins.length) {
+    $("winsBox").hidden = false;
+    D.wins.forEach(function (w) {
+      var li = document.createElement("li"); li.style.setProperty("--c", COLORS[w[1] % 5]);
+      var a = document.createElement("span"); a.textContent = w[0];
+      var b = document.createElement("span"); b.textContent = rub(w[2]) + " ₽";
+      li.appendChild(a); li.appendChild(b); $("wins").appendChild(li);
+    });
+  }
+  $("note").textContent = D.demo
+    ? "Это пример. Открой коробки из бота: команда /box."
+    : "Приз выбирается случайно по шансам выше. Участие бесплатное.";
+
+  // ── лента ──
+  var total = D.tiers.reduce(function (a, t) { return a + t[2]; }, 0);
+  function randomTier() {
+    var x = Math.random() * total, acc = 0;
+    for (var i = 0; i < D.tiers.length; i++) { acc += D.tiers[i][2]; if (x < acc) return i; }
+    return 0;
+  }
+  var reel = $("reel"), hasPrize = D.bx > 0 && D.pz >= 0;
+  function card(i) {
+    var t = D.tiers[i], c = document.createElement("div");
+    c.className = "card"; c.style.setProperty("--c", COLORS[i % 5]);
+    c.innerHTML = "<b>" + rub(t[1]) + "</b><i>₽</i>";
+    return c;
+  }
+  var cards = [];
+  for (var k = 0; k < TOTAL; k++) {
+    var idx = (hasPrize && k === WIN_AT) ? D.pz : randomTier();
+    var c = card(idx); cards.push(c); reel.appendChild(c);
+  }
+  function offsetFor(index, shift) {
+    var w = document.querySelector(".window").clientWidth;
+    return -(index * STEP + CARD / 2 - w / 2 + (shift || 0));
+  }
+  reel.style.transform = "translateX(" + offsetFor(3) + "px)";
+
+  var main = $("main"), result = $("result"), state = "idle";
+  var WHY = {
+    personal_day: "Сегодня ты уже открыл все свои коробки. Остальные откроются завтра, они не сгорят.",
+    day: "На сегодня призы разыграны. Приходи завтра, коробка никуда не денется.",
+    fund: "Призовой фонд разыгран, конкурс окончен. Деньги с баланса можно вывести.",
+    off: "Конкурс сейчас не идёт."
+  };
+
+  if (!hasPrize) {
+    $("case").classList.add("locked");
+    if (D.bx > 0 && D.why) {
+      $("locknote").textContent = WHY[D.why] || "Коробку пока нельзя открыть.";
+      main.hidden = true;
+    } else {
+      $("locknote").textContent = "Ещё " + D.nx + " " + plural(D.nx, "друг", "друга", "друзей") + " — и коробка твоя";
+      main.textContent = "Позвать друзей";
+      $("invite").hidden = true;
+      state = "invite";
+    }
+  } else {
+    result.innerHTML = '<p class="hint">' + (D.bx > 1 ? "У тебя " + D.bx + " " + plural(D.bx, "коробка", "коробки", "коробок") + ". " : "") + "Жми — и лента покажет, что внутри.</p>";
+  }
+
+  function spin() {
+    state = "spinning"; main.disabled = true; main.textContent = "Крутим…"; result.innerHTML = "";
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var dur = reduce ? 600 : 6200;
+    var shift = (Math.random() - 0.5) * (CARD - 22);
+    var from = offsetFor(3), to = offsetFor(WIN_AT, shift), t0 = performance.now(), lastCell = -1;
+    function ease(p) { return 1 - Math.pow(1 - p, 4.2); }
+    function frame(now) {
+      var p = Math.min(1, (now - t0) / dur), x = from + (to - from) * ease(p);
+      reel.style.transform = "translateX(" + x + "px)";
+      var cell = Math.floor(-x / STEP);
+      if (cell !== lastCell) { lastCell = cell; haptic("selectionChanged"); }
+      if (p < 1) requestAnimationFrame(frame); else done();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function done() {
+    var t = D.tiers[D.pz];
+    document.documentElement.style.setProperty("--win", HEX[D.pz % 5]);
+    cards[WIN_AT].classList.add("won");
+    result.innerHTML = '<p class="big"></p>';
+    result.querySelector(".big").textContent = t[0] + " коробка: " + rub(t[1]) + " ₽";
+    haptic("notificationOccurred", "success");
+    if (D.pz >= 2) confetti(HEX[D.pz % 5]);
+    state = "won"; main.disabled = false;
+    main.textContent = canSend ? "Забрать " + rub(t[1]) + " ₽" : "Забрать в боте: /box";
+    if (!canSend) main.disabled = true;
+  }
+
+  function send(action) {
+    if (!canSend) return false;
+    try { tg.sendData(JSON.stringify({ a: action })); return true; } catch (e) { return false; }
+  }
+  function invite() {
+    haptic("impactOccurred", "light");
+    var url = "https://t.me/share/url?url=" + encodeURIComponent(D.link) + "&text=" + encodeURIComponent(D.text || "");
+    if (tg && tg.openTelegramLink && D.link) { try { tg.openTelegramLink(url); return; } catch (e) {} }
+    if (D.link) window.open(url, "_blank");
+  }
+
+  main.addEventListener("click", function () {
+    if (state === "idle" && hasPrize) { haptic("impactOccurred", "medium"); spin(); }
+    else if (state === "won") { main.disabled = true; if (!send("open")) main.textContent = "Напиши боту /box"; }
+    else if (state === "invite") invite();
+  });
+  $("invite").addEventListener("click", invite);
+  cash.addEventListener("click", function () { if (!send("wd")) cash.textContent = "Напиши боту /box"; });
+
+  // ── конфетти для редких коробок ──
+  function confetti(color) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var cv = $("confetti"), ctx = cv.getContext("2d"), W = cv.width = innerWidth, H = cv.height = innerHeight;
+    var parts = [], palette = [color, "#7df0c8", "#eef0ff"];
+    for (var i = 0; i < 110; i++) parts.push({ x: W / 2, y: H * 0.34, vx: (Math.random() - 0.5) * 13, vy: -Math.random() * 13 - 3,
+      s: 4 + Math.random() * 6, r: Math.random() * 6, c: palette[i % 3] });
+    var t0 = performance.now();
+    (function loop(now) {
+      ctx.clearRect(0, 0, W, H);
+      parts.forEach(function (p) { p.vy += 0.34; p.x += p.vx; p.y += p.vy; p.r += 0.2;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 3, p.s, p.s / 1.6); ctx.restore(); });
+      if (now - t0 < 2600) requestAnimationFrame(loop); else ctx.clearRect(0, 0, W, H);
+    })(t0);
+  }
+})();
+</script>
+</body>
+</html>
