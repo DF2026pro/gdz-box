@@ -59,16 +59,17 @@
   .needle::before, .needle::after { content: ""; position: absolute; left: 50%; margin-left: -8px; border: 8px solid transparent; }
   .needle::before { top: 0; border-top-color: var(--go); }
   .needle::after { bottom: 0; border-bottom-color: var(--go); }
-  .locked .reel { filter: grayscale(.9) brightness(.28) blur(1.5px); }
   .locked .needle { display: none; }
-  .locknote { position: absolute; inset: 0; z-index: 4; display: none; align-items: center; justify-content: center;
-              text-align: center; padding: 0 28px; font-weight: 600; font-size: 17px; }
-  .locked .locknote { display: flex; }
+  .locked .reel { animation: drift 150s linear infinite alternate; }
+  @keyframes drift { to { transform: translateX(-5600px); } }
+  @media (prefers-reduced-motion: reduce) { .locked .reel { animation: none; } }
 
   /* ── итог ── */
-  .result { min-height: 58px; margin-top: 14px; text-align: center; }
+  .result { min-height: 58px; margin-top: 16px; text-align: center; }
   .result .big { font-family: var(--display); font-weight: 800; font-size: 26px; color: var(--win); letter-spacing: -0.01em; }
   .result .hint { color: var(--soft); font-size: 15px; }
+  .result .lead { font-family: var(--display); font-weight: 800; font-size: 19px; line-height: 1.25; letter-spacing: -0.01em; }
+  .result .lead + .hint { margin-top: 6px; }
 
   /* ── кнопки ── */
   .primary { display: block; width: 100%; margin-top: 10px; padding: 17px 16px; border: 0; border-radius: 16px;
@@ -127,7 +128,6 @@
   <div class="window">
     <div class="reel" id="reel"></div>
     <div class="needle"></div>
-    <div class="locknote" id="locknote"></div>
   </div>
   <div class="pad">
     <div class="result" id="result"></div>
@@ -232,23 +232,33 @@
     : "Приз выбирается случайно по шансам выше. Участие бесплатное.";
 
   // ── лента ──
-  var total = D.tiers.reduce(function (a, t) { return a + t[2]; }, 0);
+  // Три режима: «free» — бесплатная коробка-знакомство, «box» — коробка за друзей,
+  // «wait» — коробки нет (зови друзей) или её пока нельзя открыть.
+  var FREE = D.free && D.free.pz >= 0 ? D.free : null;
+  var hasPrize = D.bx > 0 && D.pz >= 0;
+  var mode = FREE ? "free" : hasPrize ? "box" : "wait";
+  var R = mode === "free"
+    ? FREE.t.map(function (t) { return { name: "Бесплатная", amount: t[0], chance: t[1], color: "var(--go)", hex: "#7df0c8" }; })
+    : D.tiers.map(function (t, i) { return { name: t[0], amount: t[1], chance: t[2], color: COLORS[i % 5], hex: HEX[i % 5] }; });
+  var prizeIdx = mode === "free" ? FREE.pz : D.pz;
+  var total = R.reduce(function (a, t) { return a + t.chance; }, 0);
   function randomTier() {
     var x = Math.random() * total, acc = 0;
-    for (var i = 0; i < D.tiers.length; i++) { acc += D.tiers[i][2]; if (x < acc) return i; }
+    for (var i = 0; i < R.length; i++) { acc += R[i].chance; if (x < acc) return i; }
     return 0;
   }
-  var reel = $("reel"), hasPrize = D.bx > 0 && D.pz >= 0;
+  var reel = $("reel");
   function card(i) {
-    var t = D.tiers[i], c = document.createElement("div");
-    c.className = "card"; c.style.setProperty("--c", COLORS[i % 5]);
-    c.innerHTML = "<b>" + rub(t[1]) + "</b><i>₽</i>";
+    var c = document.createElement("div");
+    c.className = "card"; c.style.setProperty("--c", R[i].color);
+    c.innerHTML = "<b>" + rub(R[i].amount) + "</b><i>₽</i>";
     return c;
   }
   var cards = [];
   for (var k = 0; k < TOTAL; k++) {
-    var idx = (hasPrize && k === WIN_AT) ? D.pz : randomTier();
-    var c = card(idx); cards.push(c); reel.appendChild(c);
+    // в режиме ожидания показываем и редкие карточки — чтобы было видно, что бывает внутри
+    var idx = (mode !== "wait" && k === WIN_AT) ? prizeIdx : (mode === "wait" && k % 7 === 5 ? 2 + (k % 3) : randomTier());
+    var c = card(Math.min(idx, R.length - 1)); cards.push(c); reel.appendChild(c);
   }
   function offsetFor(index, shift) {
     var w = document.querySelector(".window").clientWidth;
@@ -263,20 +273,29 @@
     fund: "Призовой фонд разыгран, конкурс окончен. Деньги с баланса можно вывести.",
     off: "Конкурс сейчас не идёт."
   };
+  var top = Math.max.apply(null, D.tiers.map(function (t) { return t[1]; }));
+  function lead(big, small) {
+    result.innerHTML = '<p class="lead"></p>' + (small ? '<p class="hint"></p>' : "");
+    result.querySelector(".lead").textContent = big;
+    if (small) result.querySelector(".hint").textContent = small;
+  }
 
-  if (!hasPrize) {
+  if (mode === "free") {
+    lead("Тебе бесплатная коробка", "Подарок за то, что пользуешься ботом. Внутри от " + rub(FREE.t[0][0]) + " до " + rub(FREE.t[FREE.t.length - 1][0]) + " ₽.");
+    main.textContent = "Открыть бесплатно";
+  } else if (mode === "box") {
+    lead(D.bx > 1 ? "У тебя " + D.bx + " " + plural(D.bx, "коробка", "коробки", "коробок") : "Коробка готова", "Жми — лента покажет, что внутри. Бывает до " + rub(top) + " ₽.");
+  } else {
     $("case").classList.add("locked");
     if (D.bx > 0 && D.why) {
-      $("locknote").textContent = WHY[D.why] || "Коробку пока нельзя открыть.";
+      lead("Коробка ждёт", WHY[D.why] || "Её пока нельзя открыть.");
       main.hidden = true;
     } else {
-      $("locknote").textContent = "Ещё " + D.nx + " " + plural(D.nx, "друг", "друга", "друзей") + " — и коробка твоя";
+      lead("Ещё " + D.nx + " " + plural(D.nx, "друг", "друга", "друзей") + " — и коробка твоя", "В каждой от " + rub(D.tiers[0][1]) + " до " + rub(top) + " ₽.");
       main.textContent = "Позвать друзей";
       $("invite").hidden = true;
       state = "invite";
     }
-  } else {
-    result.innerHTML = '<p class="hint">' + (D.bx > 1 ? "У тебя " + D.bx + " " + plural(D.bx, "коробка", "коробки", "коробок") + ". " : "") + "Жми — и лента покажет, что внутри.</p>";
   }
 
   function spin() {
@@ -297,15 +316,16 @@
   }
 
   function done() {
-    var t = D.tiers[D.pz];
-    document.documentElement.style.setProperty("--win", HEX[D.pz % 5]);
+    var t = R[prizeIdx];
+    document.documentElement.style.setProperty("--win", t.hex);
     cards[WIN_AT].classList.add("won");
-    result.innerHTML = '<p class="big"></p>';
-    result.querySelector(".big").textContent = t[0] + " коробка: " + rub(t[1]) + " ₽";
+    result.innerHTML = '<p class="big"></p>' + (mode === "free" ? '<p class="hint"></p>' : "");
+    result.querySelector(".big").textContent = t.name + " коробка: " + rub(t.amount) + " ₽";
+    if (mode === "free") result.querySelector(".hint").textContent = "За каждых " + (D.per || 3) + " друзей — коробка до " + rub(top) + " ₽.";
     haptic("notificationOccurred", "success");
-    if (D.pz >= 2) confetti(HEX[D.pz % 5]);
+    if (mode === "free" || prizeIdx >= 2) confetti(t.hex);
     state = "won"; main.disabled = false;
-    main.textContent = canSend ? "Забрать " + rub(t[1]) + " ₽" : "Забрать в боте: /box";
+    main.textContent = canSend ? "Забрать " + rub(t.amount) + " ₽" : "Забрать в боте: /box";
     if (!canSend) main.disabled = true;
   }
 
@@ -321,8 +341,8 @@
   }
 
   main.addEventListener("click", function () {
-    if (state === "idle" && hasPrize) { haptic("impactOccurred", "medium"); spin(); }
-    else if (state === "won") { main.disabled = true; if (!send("open")) main.textContent = "Напиши боту /box"; }
+    if (state === "idle" && mode !== "wait") { haptic("impactOccurred", "medium"); spin(); }
+    else if (state === "won") { main.disabled = true; if (!send(mode === "free" ? "free" : "open")) main.textContent = "Напиши боту /box"; }
     else if (state === "invite") invite();
   });
   $("invite").addEventListener("click", invite);
