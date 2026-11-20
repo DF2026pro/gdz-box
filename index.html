@@ -25,7 +25,8 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--ink); color: var(--text); font-family: var(--body);
                font-size: 16px; line-height: 1.45; overscroll-behavior: none; }
-  body { padding: 18px 0 calc(28px + env(safe-area-inset-bottom)); min-height: 100vh; }
+  body { padding: 18px 0 calc(28px + env(safe-area-inset-bottom)); min-height: 100vh;
+         max-width: 520px; margin: 0 auto; }   /* на компьютере — колонка как на телефоне */
   .pad { padding: 0 18px; }
   h1, h2, p { margin: 0; }
 
@@ -163,7 +164,7 @@
   var tg = window.Telegram && window.Telegram.WebApp;
   var COLORS = ["var(--r0)", "var(--r1)", "var(--r2)", "var(--r3)", "var(--r4)"];
   var HEX = ["#4b69ff", "#8847ff", "#d32ce6", "#eb4b4b", "#ffc83d"];
-  var CARD = 96, GAP = 8, STEP = CARD + GAP, WIN_AT = 58, TOTAL = 64;
+  var CARD = 96, GAP = 8, STEP = CARD + GAP, WIN_AT = 58, TOTAL = 74;
 
   // Данные приходят от бота в адресе (?d=…). Без них — показ-пример.
   function readData() {
@@ -176,7 +177,7 @@
       return JSON.parse(new TextDecoder().decode(bytes));
     } catch (e) { return null; }
   }
-  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 150, wd: 0,
+  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0,
                link: "", text: "", tasks: 2,
                tiers: [["Синяя", 30, 79.32], ["Фиолетовая", 60, 15.98], ["Розовая", 150, 3.2], ["Красная", 400, 1], ["Золотая", 1000, 0.5]],
                wins: [["Маша", 2, 150], ["Дима", 0, 30], ["Алина", 1, 60]] };
