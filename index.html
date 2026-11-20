@@ -227,9 +227,12 @@
       li.appendChild(a); li.appendChild(b); $("wins").appendChild(li);
     });
   }
+  var stale = !D.demo && D.t && (Date.now() / 1000 - D.t > 600);
   $("note").textContent = D.demo
     ? "Это пример. Открой коробки из бота: команда /box."
-    : "Приз выбирается случайно по шансам выше. Участие бесплатное.";
+    : stale ? "Цифры могли устареть. Чтобы обновить, напиши боту /box и открой приложение заново."
+            : "Приз выбирается случайно по шансам выше. Участие бесплатное.";
+  if (stale) { $("note").style.color = "var(--r4)"; document.body.insertBefore($("note"), document.body.querySelector(".case")); $("note").style.margin = "14px 0 0"; }
 
   // ── лента ──
   // Три режима: «free» — бесплатная коробка-знакомство, «box» — коробка за друзей,
