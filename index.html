@@ -231,7 +231,7 @@
       return JSON.parse(new TextDecoder().decode(bytes));
     } catch (e) { return null; }
   }
-  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0, sh: [["Пятёрочка", [100, 200, 250, 300, 500, 1000]], ["Ozon", [500, 1000, 2000, 3000]], ["Wildberries", [500, 1000, 2000, 3000]]],
+  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0, 
                link: "", text: "", tasks: 2,
                tiers: [["Синяя", 30, 79.32], ["Фиолетовая", 60, 15.98], ["Розовая", 150, 3.2], ["Красная", 400, 1], ["Золотая", 1000, 0.5]],
                wins: [["Маша", 2, 150], ["Дима", 0, 30], ["Алина", 1, 60]] };
@@ -404,7 +404,10 @@
   $("invite").addEventListener("click", invite);
   // ── экран вывода: заявка оформляется здесь, боту уходит уже готовая ──
   // магазины: [название, [номиналы]] — выдаётся самый крупный номинал, на который хватает баланса
-  var SHOPS = D.sh || [];
+  // Если бот прислал список в старом виде или не прислал вовсе — показываем обычный набор
+  var DEFAULT_SHOPS = [["Пятёрочка", [200, 250, 300, 500, 1000]], ["Перекрёсток", [200, 250, 300, 500, 1000, 1500, 2000]],
+                       ["Ozon", [500, 1000, 2000, 3000]], ["Wildberries", [500, 1000, 2000, 3000]]];
+  var SHOPS = (Array.isArray(D.sh) && D.sh.length && Array.isArray(D.sh[0]) && Array.isArray(D.sh[0][1])) ? D.sh : DEFAULT_SHOPS;
   function certFor(denoms) { var best = 0; denoms.forEach(function (d) { if (d <= D.bal && d > best) best = d; }); return best; }
   var certLeast = Infinity; SHOPS.forEach(function (sh) { sh[1].forEach(function (d) { if (d < certLeast) certLeast = d; }); });
   var chosen = null;
