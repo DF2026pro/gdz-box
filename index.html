@@ -50,13 +50,32 @@
   .sheet .close { font: 600 15px var(--body); color: var(--soft); background: none; border: 0; padding: 8px 0 8px 12px; }
   .sheet .have { margin-top: 6px; color: var(--soft); }
   .sheet .have b { color: var(--text); font-weight: 600; }
-  .way { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 14px 16px; border-radius: 14px;
-         background: var(--panel); border: 2px solid transparent; color: var(--text); font: 400 16px var(--body); }
-  .way b { display: block; font-weight: 600; }
-  .way span { display: block; color: var(--soft); font-size: 14px; margin-top: 2px; }
-  .way.on { border-color: var(--go); }
-  .way:disabled { opacity: .5; }
-  .way:focus-visible, .sheet input:focus-visible, .sheet .close:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .tile { position: relative; overflow: hidden; text-align: left; border: 0; border-radius: 16px; padding: 14px 14px 12px;
+          min-height: 112px; display: flex; flex-direction: column; justify-content: space-between; color: #fff;
+          background: var(--bg); font-family: var(--body); box-shadow: 0 5px 0 var(--edge);
+          transition: transform .08s, box-shadow .08s; animation: tileIn .34s cubic-bezier(.2,.9,.3,1.2) both; }
+  .tile:nth-child(2) { animation-delay: .05s; } .tile:nth-child(3) { animation-delay: .1s; }
+  .tile:nth-child(4) { animation-delay: .15s; } .tile:nth-child(5) { animation-delay: .2s; }
+  @keyframes tileIn { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+  .tile:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--edge); }
+  .tile.wide { grid-column: 1 / -1; min-height: 96px; }
+  .tile::after { content: ""; position: absolute; right: -34px; top: -34px; width: 120px; height: 120px; border-radius: 50%;
+                 background: rgba(255,255,255,.14); }
+  .tile .nm { position: relative; font: 800 17px var(--display); letter-spacing: -0.02em; line-height: 1.2; }
+  .tile .kind { position: relative; font-size: 13px; opacity: .85; margin-top: 2px; }
+  .tile .sum { position: relative; font: 800 22px var(--display); letter-spacing: -0.02em; margin-top: 10px; }
+  .tile .sum small { font: 600 13px var(--body); letter-spacing: 0; opacity: .9; }
+  .tile:disabled { filter: saturate(.25) brightness(.62); box-shadow: 0 5px 0 #1f2350; }
+  .tile:disabled .sum { font: 600 14px var(--body); letter-spacing: 0; }
+  .tile:focus-visible, .sheet input:focus-visible, .sheet .close:focus-visible, .back:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .picked { margin-top: 16px; border-radius: 16px; padding: 16px; color: #fff; background: var(--bg); position: relative; overflow: hidden; }
+  .picked .nm { font: 800 19px var(--display); letter-spacing: -0.02em; }
+  .picked .sum { font: 800 30px var(--display); letter-spacing: -0.02em; margin-top: 6px; }
+  .picked p { margin-top: 8px; font-size: 15px; opacity: .92; }
+  .back { margin-top: 14px; width: 100%; padding: 13px; border-radius: 14px; background: none; border: 1.5px solid var(--line);
+          color: var(--text); font: 600 15px var(--body); }
+  @media (prefers-reduced-motion: reduce) { .tile { animation: none; transition: none; } }
   .field { display: block; margin-top: 14px; font-size: 14px; color: var(--soft); }
   .field input { display: block; width: 100%; margin-top: 6px; padding: 14px; border-radius: 12px; border: 1.5px solid var(--line);
                  background: #0c0e22; color: var(--text); font: 400 17px var(--body); }
@@ -162,10 +181,14 @@
       <button class="primary" id="needInvite" type="button">Позвать друзей</button>
     </div>
 
-    <div id="waysBox" hidden>
-      <div id="ways"></div>
+    <div id="pickBox" hidden>
+      <div class="tiles" id="tiles"></div>
+    </div>
+
+    <div id="doneBox" hidden>
+      <div class="picked" id="picked"></div>
       <div id="cardForm" hidden>
-        <label class="field">Номер телефона для перевода по СБП
+        <label class="field">Номер телефона, к которому привязана карта
           <input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 123 456 78 90"></label>
         <label class="field">Банк
           <input id="fBank" type="text" autocomplete="off" placeholder="Сбер"></label>
@@ -174,6 +197,7 @@
       </div>
       <p class="err" id="sheetErr" role="alert"></p>
       <button class="primary" id="sheetSend" type="button">Отправить заявку</button>
+      <button class="back" id="sheetBack" type="button">Выбрать другой способ</button>
     </div>
   </div>
 </div>
@@ -411,51 +435,77 @@
   function certFor(denoms) { var best = 0; denoms.forEach(function (d) { if (d <= D.bal && d > best) best = d; }); return best; }
   var certLeast = Infinity; SHOPS.forEach(function (sh) { sh[1].forEach(function (d) { if (d < certLeast) certLeast = d; }); });
   var chosen = null;
+  // Цвета карточек магазинов (без логотипов — только название и фирменный цвет)
+  var LOOK = {
+    "Пятёрочка":   { bg: "linear-gradient(135deg,#e5262b,#b3151b)", edge: "#7d0d12" },
+    "Перекрёсток": { bg: "linear-gradient(135deg,#2c9a3f,#176b2a)", edge: "#0e4a1c" },
+    "Ozon":        { bg: "linear-gradient(135deg,#1f6bff,#0a43c9)", edge: "#062e8f" },
+    "Wildberries": { bg: "linear-gradient(135deg,#b62bd9,#6f1aa8)", edge: "#4a0f73" }
+  };
+  var BANK = { bg: "linear-gradient(135deg,#2a3170,#1a1f52)", edge: "#0f1238" };
+  var ANY = { bg: "linear-gradient(135deg,#3a4080,#232a5e)", edge: "#141840" };
+
+  function show(id) { ["needBox", "pickBox", "doneBox"].forEach(function (x) { $(x).hidden = x !== id; }); }
   function openSheet() {
     haptic("impactOccurred", "light");
-    $("sheet").hidden = false; $("sheetBal").textContent = rub(D.bal) + " ₽"; $("sheetErr").textContent = "";
+    $("sheet").hidden = false; $("sheet").scrollTop = 0; $("sheetBal").textContent = rub(D.bal) + " ₽";
     var least = Math.min(D.mw, certLeast);
     if (D.bal < least) {
-      $("needBox").hidden = false; $("waysBox").hidden = true;
+      show("needBox");
       $("needBar").style.width = Math.max(3, Math.min(100, D.bal / least * 100)) + "%";
       $("needText").textContent = "Вывод — от " + rub(least) + " ₽. Не хватает " + rub(least - D.bal) + " ₽. За каждых "
         + (D.per || 3) + " друзей — коробка, в ней до " + rub(top) + " ₽.";
       return;
     }
-    $("needBox").hidden = true; $("waysBox").hidden = false;
-    var box = $("ways"); box.innerHTML = ""; chosen = null; $("cardForm").hidden = true;
-    function way(id, title, sub, off) {
-      var b = document.createElement("button"); b.type = "button"; b.className = "way"; b.disabled = !!off;
-      var t = document.createElement("b"); t.textContent = title; var u = document.createElement("span"); u.textContent = sub;
-      b.appendChild(t); b.appendChild(u);
-      b.addEventListener("click", function () {
-        chosen = id; haptic("selectionChanged");
-        Array.prototype.forEach.call(box.children, function (x) { x.classList.remove("on"); });
-        b.classList.add("on"); $("cardForm").hidden = id !== "card"; $("sheetErr").textContent = "";
-        if (id === "card") $("fPhone").focus();
-      });
-      box.appendChild(b); return b;
+    pick();
+  }
+  // Шаг 1: карточки на выбор. Ничего не выбрано заранее.
+  function pick() {
+    chosen = null; show("pickBox");
+    var box = $("tiles"); box.innerHTML = "";
+    function tile(id, look, name, kind, sum, lockText, wide) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "tile" + (wide ? " wide" : "");
+      b.style.setProperty("--bg", look.bg); b.style.setProperty("--edge", look.edge);
+      var top = document.createElement("div"), n = document.createElement("div"), k = document.createElement("div"), m = document.createElement("div");
+      n.className = "nm"; n.textContent = name; k.className = "kind"; k.textContent = kind; top.appendChild(n); top.appendChild(k);
+      m.className = "sum";
+      if (sum) { m.textContent = rub(sum) + " "; var sm = document.createElement("small"); sm.textContent = "₽"; m.appendChild(sm); }
+      else { m.textContent = lockText; b.disabled = true; }
+      b.appendChild(top); b.appendChild(m);
+      b.addEventListener("click", function () { haptic("impactOccurred", "medium"); confirmWay(id, look, name, kind, sum); });
+      box.appendChild(b);
     }
-    var first = null;
-    if (D.bal >= D.mw) first = way("card", "Перевод по номеру телефона", "Весь баланс: " + rub(D.bal) + " ₽");
-    else way("card", "Перевод по номеру телефона", "От " + rub(D.mw) + " ₽", true);
+    tile("card", BANK, "Перевод на карту банка", "по номеру телефона", D.bal >= D.mw ? D.bal : 0, "от " + rub(D.mw) + " ₽", true);
     SHOPS.forEach(function (sh) {
-      var shop = sh[0], sum = certFor(sh[1]), low = Math.min.apply(null, sh[1]);
-      if (sum) {
-        var w = way("cert:" + shop, "Сертификат " + shop, rub(sum) + " ₽ кодом в чат" + (D.bal - sum ? ". Остаток " + rub(D.bal - sum) + " ₽ останется на балансе" : ""));
-        first = first || w;
-      } else way("cert:" + shop, "Сертификат " + shop, "Если нет карты. От " + rub(low) + " ₽", true);
+      tile("cert:" + sh[0], LOOK[sh[0]] || ANY, sh[0], "подарочный сертификат", certFor(sh[1]), "от " + rub(Math.min.apply(null, sh[1])) + " ₽", false);
     });
-    if (first) first.click();
+  }
+  // Шаг 2: подтверждение выбранного способа (для перевода — поля с номером и банком).
+  function confirmWay(id, look, name, kind, sum) {
+    chosen = id; show("doneBox"); $("sheet").scrollTop = 0; $("sheetErr").textContent = ""; $("sheetSend").disabled = false;
+    var p = $("picked"); p.style.setProperty("--bg", look.bg); p.innerHTML = "";
+    var n = document.createElement("div"), m = document.createElement("div"), t = document.createElement("p");
+    n.className = "nm"; n.textContent = name; m.className = "sum"; m.textContent = rub(sum) + " ₽";
+    if (id === "card") {
+      t.textContent = "Переведу весь баланс по СБП. Впиши, куда.";
+      $("cardForm").hidden = false; $("sheetSend").textContent = "Отправить заявку";
+    } else {
+      t.textContent = "Код сертификата придёт в чат с ботом после проверки заявки."
+        + (D.bal - sum ? " Остаток " + rub(D.bal - sum) + " ₽ останется на балансе." : "");
+      $("cardForm").hidden = true; $("sheetSend").textContent = "Получить сертификат";
+    }
+    p.appendChild(n); p.appendChild(m); p.appendChild(t);
+    if (id === "card") setTimeout(function () { $("fPhone").focus(); }, 60);
   }
   function closeSheet() { $("sheet").hidden = true; }
   cash.addEventListener("click", openSheet);
   $("sheetClose").addEventListener("click", closeSheet);
+  $("sheetBack").addEventListener("click", function () { haptic("selectionChanged"); pick(); });
   $("needInvite").addEventListener("click", invite);
   ["fPhone", "fBank", "fName"].forEach(function (id) { $(id).addEventListener("input", function () { $("sheetErr").textContent = ""; }); });
   $("sheetSend").addEventListener("click", function () {
     var err = $("sheetErr"), payload;
-    if (!chosen) { err.textContent = "Выбери, как забрать деньги."; return; }
+    if (!chosen) { pick(); return; }
     if (chosen === "card") {
       var phone = $("fPhone").value.trim(), bank = $("fBank").value.trim(), name = $("fName").value.trim();
       if (phone.replace(/\D/g, "").length < 10) { err.textContent = "Впиши номер телефона полностью, 10–11 цифр."; $("fPhone").focus(); return; }
