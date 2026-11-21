@@ -231,7 +231,7 @@
       return JSON.parse(new TextDecoder().decode(bytes));
     } catch (e) { return null; }
   }
-  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0, cm: 500, cs: 500, sh: ["Ozon", "Wildberries"],
+  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0, sh: [["Пятёрочка", [100, 200, 250, 300, 500, 1000]], ["Ozon", [500, 1000, 2000, 3000]], ["Wildberries", [500, 1000, 2000, 3000]]],
                link: "", text: "", tasks: 2,
                tiers: [["Синяя", 30, 79.32], ["Фиолетовая", 60, 15.98], ["Розовая", 150, 3.2], ["Красная", 400, 1], ["Золотая", 1000, 0.5]],
                wins: [["Маша", 2, 150], ["Дима", 0, 30], ["Алина", 1, 60]] };
@@ -403,17 +403,19 @@
   });
   $("invite").addEventListener("click", invite);
   // ── экран вывода: заявка оформляется здесь, боту уходит уже готовая ──
-  var CM = D.cm || 500, CS = D.cs || 500, SHOPS = D.sh || ["Ozon", "Wildberries"];
-  var certSum = Math.floor(D.bal / CS) * CS; if (certSum < CM) certSum = 0;
+  // магазины: [название, [номиналы]] — выдаётся самый крупный номинал, на который хватает баланса
+  var SHOPS = D.sh || [];
+  function certFor(denoms) { var best = 0; denoms.forEach(function (d) { if (d <= D.bal && d > best) best = d; }); return best; }
+  var certLeast = Infinity; SHOPS.forEach(function (sh) { sh[1].forEach(function (d) { if (d < certLeast) certLeast = d; }); });
   var chosen = null;
   function openSheet() {
     haptic("impactOccurred", "light");
     $("sheet").hidden = false; $("sheetBal").textContent = rub(D.bal) + " ₽"; $("sheetErr").textContent = "";
-    var least = Math.min(D.mw, CM);
+    var least = Math.min(D.mw, certLeast);
     if (D.bal < least) {
       $("needBox").hidden = false; $("waysBox").hidden = true;
       $("needBar").style.width = Math.max(3, Math.min(100, D.bal / least * 100)) + "%";
-      $("needText").textContent = "Вывод — от " + rub(D.mw) + " ₽. Не хватает " + rub(least - D.bal) + " ₽. За каждых "
+      $("needText").textContent = "Вывод — от " + rub(least) + " ₽. Не хватает " + rub(least - D.bal) + " ₽. За каждых "
         + (D.per || 3) + " друзей — коробка, в ней до " + rub(top) + " ₽.";
       return;
     }
@@ -434,11 +436,12 @@
     var first = null;
     if (D.bal >= D.mw) first = way("card", "Перевод по номеру телефона", "Весь баланс: " + rub(D.bal) + " ₽");
     else way("card", "Перевод по номеру телефона", "От " + rub(D.mw) + " ₽", true);
-    SHOPS.forEach(function (shop) {
-      if (certSum) {
-        var w = way("cert:" + shop, "Сертификат " + shop, rub(certSum) + " ₽ кодом в чат" + (D.bal - certSum ? ". Остаток " + rub(D.bal - certSum) + " ₽ останется на балансе" : ""));
+    SHOPS.forEach(function (sh) {
+      var shop = sh[0], sum = certFor(sh[1]), low = Math.min.apply(null, sh[1]);
+      if (sum) {
+        var w = way("cert:" + shop, "Сертификат " + shop, rub(sum) + " ₽ кодом в чат" + (D.bal - sum ? ". Остаток " + rub(D.bal - sum) + " ₽ останется на балансе" : ""));
         first = first || w;
-      } else way("cert:" + shop, "Сертификат " + shop, "Если нет карты. От " + rub(CM) + " ₽", true);
+      } else way("cert:" + shop, "Сертификат " + shop, "Если нет карты. От " + rub(low) + " ₽", true);
     });
     if (first) first.click();
   }
