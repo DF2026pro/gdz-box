@@ -35,10 +35,36 @@
   .wallet .sum { font-family: var(--display); font-weight: 800; font-size: 44px; line-height: 1; letter-spacing: -0.02em; }
   .wallet .sum small { font-size: 22px; font-weight: 500; margin-left: 4px; }
   .wallet .cap { color: var(--soft); font-size: 14px; margin-bottom: 6px; }
-  .cashout { font: 600 14px var(--body); color: var(--text); background: none; border: 1.5px solid var(--line);
-             border-radius: 999px; padding: 9px 14px; white-space: nowrap; }
-  .cashout:disabled, .cashout.dim { color: var(--soft); border-style: dashed; }
-  .cashnote { margin: 10px 18px 0; padding: 12px 14px; border-radius: 12px; background: var(--panel); font-size: 15px; }
+  .cashout { font: 800 14px var(--display); letter-spacing: -0.01em; color: var(--ink); background: var(--text); border: 0;
+             border-radius: 12px; padding: 12px 16px; white-space: nowrap; box-shadow: 0 4px 0 #9aa0cf;
+             transition: transform .08s, box-shadow .08s; }
+  .cashout:active { transform: translateY(3px); box-shadow: 0 1px 0 #9aa0cf; }
+  .cashout:disabled { background: var(--panel); color: var(--soft); box-shadow: none; }
+
+  /* ── экран вывода ── */
+  .sheet { position: fixed; inset: 0; z-index: 20; background: var(--ink); overflow-y: auto;
+           padding: 18px 18px calc(28px + env(safe-area-inset-bottom)); }
+  .sheet .in { max-width: 484px; margin: 0 auto; }
+  .sheet .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .sheet h1 { font: 800 22px var(--display); letter-spacing: -0.02em; }
+  .sheet .close { font: 600 15px var(--body); color: var(--soft); background: none; border: 0; padding: 8px 0 8px 12px; }
+  .sheet .have { margin-top: 6px; color: var(--soft); }
+  .sheet .have b { color: var(--text); font-weight: 600; }
+  .way { display: block; width: 100%; text-align: left; margin-top: 12px; padding: 14px 16px; border-radius: 14px;
+         background: var(--panel); border: 2px solid transparent; color: var(--text); font: 400 16px var(--body); }
+  .way b { display: block; font-weight: 600; }
+  .way span { display: block; color: var(--soft); font-size: 14px; margin-top: 2px; }
+  .way.on { border-color: var(--go); }
+  .way:disabled { opacity: .5; }
+  .way:focus-visible, .sheet input:focus-visible, .sheet .close:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .field { display: block; margin-top: 14px; font-size: 14px; color: var(--soft); }
+  .field input { display: block; width: 100%; margin-top: 6px; padding: 14px; border-radius: 12px; border: 1.5px solid var(--line);
+                 background: #0c0e22; color: var(--text); font: 400 17px var(--body); }
+  .field input::placeholder { color: #5f6594; }
+  .err { margin-top: 10px; color: #ff8f8f; font-size: 15px; min-height: 22px; }
+  .need .bar { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; margin-top: 18px; }
+  .need .bar span { display: block; height: 100%; background: var(--go); border-radius: 6px; }
+  .need p { margin-top: 12px; }
 
   /* ── лента кейса ── */
   .case { margin: 22px 0 0; position: relative; }
@@ -125,7 +151,32 @@
   <button class="cashout" id="cashout" type="button">Вывести</button>
 </header>
 
-<p class="cashnote" id="cashnote" hidden></p>
+<div class="sheet" id="sheet" hidden>
+  <div class="in">
+    <div class="top"><h1>Вывод денег</h1><button class="close" id="sheetClose" type="button">Закрыть</button></div>
+    <p class="have">На балансе <b id="sheetBal"></b></p>
+
+    <div class="need" id="needBox" hidden>
+      <div class="bar"><span id="needBar"></span></div>
+      <p id="needText"></p>
+      <button class="primary" id="needInvite" type="button">Позвать друзей</button>
+    </div>
+
+    <div id="waysBox" hidden>
+      <div id="ways"></div>
+      <div id="cardForm" hidden>
+        <label class="field">Номер телефона для перевода по СБП
+          <input id="fPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 123 456 78 90"></label>
+        <label class="field">Банк
+          <input id="fBank" type="text" autocomplete="off" placeholder="Сбер"></label>
+        <label class="field">Имя получателя
+          <input id="fName" type="text" autocomplete="name" placeholder="Иван И."></label>
+      </div>
+      <p class="err" id="sheetErr" role="alert"></p>
+      <button class="primary" id="sheetSend" type="button">Отправить заявку</button>
+    </div>
+  </div>
+</div>
 
 <section class="case" id="case" aria-live="polite">
   <div class="window">
@@ -180,7 +231,7 @@
       return JSON.parse(new TextDecoder().decode(bytes));
     } catch (e) { return null; }
   }
-  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0,
+  var DEMO = { demo: 1, bal: 90, fr: 2, per: 3, nx: 1, pe: 1, bx: 1, pz: 1, fl: 7430, fu: 10000, mw: 300, wd: 0, cm: 500, cs: 500, sh: ["Ozon", "Wildberries"],
                link: "", text: "", tasks: 2,
                tiers: [["Синяя", 30, 79.32], ["Фиолетовая", 60, 15.98], ["Розовая", 150, 3.2], ["Красная", 400, 1], ["Золотая", 1000, 0.5]],
                wins: [["Маша", 2, 150], ["Дима", 0, 30], ["Алина", 1, 60]] };
@@ -199,9 +250,7 @@
   // ── баланс, друзья, шансы, фонд ──
   $("bal").textContent = rub(D.bal);
   var cash = $("cashout");
-  var canCash = !D.wd && D.bal >= D.mw;
   if (D.wd) { cash.textContent = "Заявка в работе"; cash.disabled = true; }
-  else if (!canCash) { cash.textContent = "Вывести"; cash.classList.add("dim"); }
 
   var per = D.per || 3, filled = Math.max(0, per - D.nx);
   if (D.bx > 0) filled = per;
@@ -353,15 +402,63 @@
     else if (state === "invite") invite();
   });
   $("invite").addEventListener("click", invite);
-  cash.addEventListener("click", function () {
-    if (!canCash) {   // денег пока мало — объясняем прямо здесь, сколько не хватает
-      haptic("notificationOccurred", "warning");
-      var n = $("cashnote"); n.hidden = false;
-      n.textContent = "Вывод — от " + rub(D.mw) + " ₽: переводом по номеру телефона или сертификатом. Тебе не хватает "
-        + rub(D.mw - D.bal) + " ₽. За каждых " + (D.per || 3) + " друзей — коробка.";
+  // ── экран вывода: заявка оформляется здесь, боту уходит уже готовая ──
+  var CM = D.cm || 500, CS = D.cs || 500, SHOPS = D.sh || ["Ozon", "Wildberries"];
+  var certSum = Math.floor(D.bal / CS) * CS; if (certSum < CM) certSum = 0;
+  var chosen = null;
+  function openSheet() {
+    haptic("impactOccurred", "light");
+    $("sheet").hidden = false; $("sheetBal").textContent = rub(D.bal) + " ₽"; $("sheetErr").textContent = "";
+    var least = Math.min(D.mw, CM);
+    if (D.bal < least) {
+      $("needBox").hidden = false; $("waysBox").hidden = true;
+      $("needBar").style.width = Math.max(3, Math.min(100, D.bal / least * 100)) + "%";
+      $("needText").textContent = "Вывод — от " + rub(D.mw) + " ₽. Не хватает " + rub(least - D.bal) + " ₽. За каждых "
+        + (D.per || 3) + " друзей — коробка, в ней до " + rub(top) + " ₽.";
       return;
     }
-    if (!send("wd")) cash.textContent = "Напиши боту /box";
+    $("needBox").hidden = true; $("waysBox").hidden = false;
+    var box = $("ways"); box.innerHTML = ""; chosen = null; $("cardForm").hidden = true;
+    function way(id, title, sub, off) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "way"; b.disabled = !!off;
+      var t = document.createElement("b"); t.textContent = title; var u = document.createElement("span"); u.textContent = sub;
+      b.appendChild(t); b.appendChild(u);
+      b.addEventListener("click", function () {
+        chosen = id; haptic("selectionChanged");
+        Array.prototype.forEach.call(box.children, function (x) { x.classList.remove("on"); });
+        b.classList.add("on"); $("cardForm").hidden = id !== "card"; $("sheetErr").textContent = "";
+        if (id === "card") $("fPhone").focus();
+      });
+      box.appendChild(b); return b;
+    }
+    var first = null;
+    if (D.bal >= D.mw) first = way("card", "Перевод по номеру телефона", "Весь баланс: " + rub(D.bal) + " ₽");
+    else way("card", "Перевод по номеру телефона", "От " + rub(D.mw) + " ₽", true);
+    SHOPS.forEach(function (shop) {
+      if (certSum) {
+        var w = way("cert:" + shop, "Сертификат " + shop, rub(certSum) + " ₽ кодом в чат" + (D.bal - certSum ? ". Остаток " + rub(D.bal - certSum) + " ₽ останется на балансе" : ""));
+        first = first || w;
+      } else way("cert:" + shop, "Сертификат " + shop, "Если нет карты. От " + rub(CM) + " ₽", true);
+    });
+    if (first) first.click();
+  }
+  function closeSheet() { $("sheet").hidden = true; }
+  cash.addEventListener("click", openSheet);
+  $("sheetClose").addEventListener("click", closeSheet);
+  $("needInvite").addEventListener("click", invite);
+  ["fPhone", "fBank", "fName"].forEach(function (id) { $(id).addEventListener("input", function () { $("sheetErr").textContent = ""; }); });
+  $("sheetSend").addEventListener("click", function () {
+    var err = $("sheetErr"), payload;
+    if (!chosen) { err.textContent = "Выбери, как забрать деньги."; return; }
+    if (chosen === "card") {
+      var phone = $("fPhone").value.trim(), bank = $("fBank").value.trim(), name = $("fName").value.trim();
+      if (phone.replace(/\D/g, "").length < 10) { err.textContent = "Впиши номер телефона полностью, 10–11 цифр."; $("fPhone").focus(); return; }
+      if (!bank) { err.textContent = "Впиши банк, куда переводить."; $("fBank").focus(); return; }
+      payload = { a: "wd", k: "card", d: (phone + " " + bank + (name ? ", " + name : "")).slice(0, 190) };
+    } else payload = { a: "wd", k: "cert", s: chosen.slice(5) };
+    if (!canSend) { err.textContent = "Заявка отправляется только из бота: открой приложение кнопкой внизу чата."; return; }
+    $("sheetSend").disabled = true;
+    try { tg.sendData(JSON.stringify(payload)); } catch (e) { $("sheetSend").disabled = false; err.textContent = "Не получилось отправить. Попробуй ещё раз."; }
   });
 
   // ── конфетти для редких коробок ──
